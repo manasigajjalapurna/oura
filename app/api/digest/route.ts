@@ -37,6 +37,17 @@ export async function POST(request: NextRequest) {
     const goals = db.prepare('SELECT * FROM goals WHERE status = ?').all('active');
     const userNotes = db.prepare('SELECT * FROM user_notes ORDER BY date DESC LIMIT 5').all();
 
+    // Check if we have any data at all
+    const hasData = sleepData.length > 0 || activityData.length > 0 || workoutData.length > 0;
+
+    if (!hasData) {
+      return NextResponse.json({
+        success: false,
+        error: 'No health data available. Please sync your Oura data first.',
+        needsSync: true,
+      }, { status: 400 });
+    }
+
     // Generate digest using Claude
     const claudeService = createClaudeService();
     const digestContent = await claudeService.generateDigest({

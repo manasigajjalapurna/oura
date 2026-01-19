@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 
 export default function Home() {
   const [digest, setDigest] = useState<string>('');
+  const [summary, setSummary] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [hasData, setHasData] = useState(false);
   const [generatedAt, setGeneratedAt] = useState<string>('');
   const [showGoalProgress, setShowGoalProgress] = useState(false);
   const [goalProgress, setGoalProgress] = useState<any>(null);
@@ -16,13 +18,32 @@ export default function Home() {
   const [noteContent, setNoteContent] = useState('');
 
   useEffect(() => {
-    loadDigest();
+    checkDataAndLoadDigest();
   }, []);
+
+  const checkDataAndLoadDigest = async () => {
+    try {
+      // Check if we have data first
+      const statusResponse = await fetch('/api/sync');
+      const statusData = await statusResponse.json();
+      const dataExists = statusData.syncStatus && statusData.syncStatus.length > 0;
+      setHasData(dataExists);
+
+      if (dataExists) {
+        await loadDigest();
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error checking data status:', error);
+      setLoading(false);
+    }
+  };
 
   const loadDigest = async (regenerate = false) => {
     try {
       setRefreshing(regenerate);
-      setLoading(!regenerate);
+      if (!regenerate) setLoading(true);
 
       const response = await fetch('/api/digest', {
         method: 'POST',
@@ -34,11 +55,18 @@ export default function Home() {
       });
 
       const data = await response.json();
-      setDigest(data.digest);
+
+      // Extract first line as summary
+      const lines = data.digest.split('\n');
+      const summaryLine = lines.find((l: string) => l.trim().startsWith('#')) || '';
+      const bodyStart = lines.findIndex((l: string) => l === summaryLine);
+
+      setSummary(summaryLine.replace(/^#+\s*/, ''));
+      setDigest(lines.slice(bodyStart + 1).join('\n'));
       setGeneratedAt(data.generatedAt);
+      setHasData(true);
     } catch (error) {
       console.error('Failed to load digest:', error);
-      setDigest('Failed to load digest. Please try syncing your data first.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -55,14 +83,13 @@ export default function Home() {
 
       const result = await response.json();
       if (result.success) {
-        alert(`Synced successfully! Records: ${JSON.stringify(result.syncedRecords, null, 2)}`);
-        // Reload digest after sync
+        setHasData(true);
         await loadDigest(true);
       } else {
         alert(`Sync failed: ${result.error}`);
       }
     } catch (error) {
-      alert('Sync failed. Check console for details.');
+      alert('Sync failed. Please check your internet connection and API keys.');
       console.error(error);
     } finally {
       setSyncing(false);
@@ -71,7 +98,6 @@ export default function Home() {
 
   const loadGoalProgress = async () => {
     try {
-      // For MVP, we're hardcoding goal ID as 1 (the "lower running HR" goal)
       const response = await fetch('/api/goals/1/progress');
       const data = await response.json();
       setGoalProgress(data);
@@ -93,7 +119,6 @@ export default function Home() {
 
       setMealDescription('');
       setShowMealInput(false);
-      alert('Meal logged successfully!');
     } catch (error) {
       alert('Failed to log meal');
       console.error(error);
@@ -112,7 +137,6 @@ export default function Home() {
 
       setNoteContent('');
       setShowNoteInput(false);
-      alert('Note saved successfully!');
     } catch (error) {
       alert('Failed to save note');
       console.error(error);
@@ -135,190 +159,243 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-stone-400 text-lg">Loading your health insights...</div>
+      <div className="min-h-screen bg-[#fafaf9] flex items-center justify-center">
+        <div className="text-neutral-400 text-sm font-light tracking-wide">Loading your health insights...</div>
+      </div>
+    );
+  }
+
+  if (!hasData) {
+    return (
+      <div className="min-h-screen bg-[#fafaf9] flex items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-3xl font-serif text-neutral-800 mb-6" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+            Welcome to your health dashboard
+          </h1>
+          <p className="text-neutral-600 mb-8 leading-relaxed font-light">
+            To get started, sync your Oura Ring data. This will fetch your recent health metrics and generate personalized insights.
+          </p>
+          <button
+            onClick={syncData}
+            disabled={syncing}
+            className="px-8 py-3 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors disabled:opacity-50"
+          >
+            {syncing ? 'Syncing your data...' : 'Sync Oura Data'}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 px-6 py-16">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-12 text-center">
-          <h1 className="text-2xl font-light text-stone-800 mb-2">{getGreeting()}</h1>
-          <p className="text-sm text-stone-500">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+    <div className="min-h-screen bg-[#fafaf9]">
+      <div className="max-w-3xl mx-auto px-6 py-16">
+        {/* Greeting */}
+        <div className="mb-4">
+          <p className="text-sm text-neutral-500 font-light tracking-wide">
+            {getGreeting()} — {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
 
-        {/* Main Digest */}
-        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-8 mb-6">
-          <div className="prose prose-stone max-w-none">
-            <div className="whitespace-pre-wrap text-stone-700 leading-relaxed">
-              {digest}
-            </div>
-          </div>
-
-          {generatedAt && (
-            <div className="mt-6 pt-4 border-t border-stone-100 text-xs text-stone-400">
-              Generated at {new Date(generatedAt).toLocaleTimeString()}
-            </div>
-          )}
+        {/* Summary Header */}
+        <div className="mb-12">
+          <h1
+            className="text-4xl text-neutral-800 leading-tight mb-2"
+            style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}
+          >
+            {summary || 'Your Daily Health Digest'}
+          </h1>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 justify-center mb-8">
+        {/* Main Digest */}
+        <div className="prose prose-neutral max-w-none mb-16">
+          <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
+            {digest}
+          </div>
+        </div>
+
+        {/* Action Icons */}
+        <div className="flex items-center gap-6 mb-16 border-t border-neutral-200 pt-8">
           <button
             onClick={() => loadDigest(true)}
             disabled={refreshing}
-            className="px-6 py-2 bg-stone-800 text-white text-sm font-medium rounded-md hover:bg-stone-700 transition-colors disabled:opacity-50"
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60 disabled:opacity-30"
+            title="Refresh digest"
           >
-            {refreshing ? 'Refreshing...' : '↻ Refresh Digest'}
+            <span className="text-2xl">↻</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">refresh</span>
           </button>
 
           <button
             onClick={syncData}
             disabled={syncing}
-            className="px-6 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors disabled:opacity-50"
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60 disabled:opacity-30"
+            title="Sync Oura data"
           >
-            {syncing ? 'Syncing...' : '⟳ Sync Oura Data'}
+            <span className="text-2xl">⟳</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">sync</span>
           </button>
 
           <button
             onClick={loadGoalProgress}
-            className="px-6 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors"
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60"
+            title="View goal progress"
           >
-            📊 Goal Progress
+            <span className="text-2xl">📊</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">goals</span>
           </button>
 
           <button
             onClick={() => setShowMealInput(!showMealInput)}
-            className="px-6 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors"
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60"
+            title="Log a meal"
           >
-            🍽️ Log Meal
+            <span className="text-2xl">🍽️</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">meal</span>
           </button>
 
           <button
             onClick={() => setShowNoteInput(!showNoteInput)}
-            className="px-6 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors"
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60"
+            title="Add a note"
           >
-            📝 Add Note
+            <span className="text-2xl">✍️</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">note</span>
           </button>
         </div>
 
-        {/* Meal Input */}
+        {/* Meal Input Modal */}
         {showMealInput && (
-          <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6 mb-6">
-            <h3 className="text-lg font-medium text-stone-800 mb-4">Log a Meal</h3>
-            <textarea
-              value={mealDescription}
-              onChange={(e) => setMealDescription(e.target.value)}
-              placeholder="E.g., chicken salad with quinoa, large portion"
-              className="w-full p-3 border border-stone-300 rounded-md text-stone-700 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-800 mb-3"
-              rows={3}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={logMeal}
-                className="px-4 py-2 bg-stone-800 text-white text-sm font-medium rounded-md hover:bg-stone-700 transition-colors"
-              >
-                Save Meal
-              </button>
-              <button
-                onClick={() => setShowMealInput(false)}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors"
-              >
-                Cancel
-              </button>
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-sm shadow-2xl max-w-md w-full p-8">
+              <h3 className="text-xl font-serif mb-4" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                Log a meal
+              </h3>
+              <textarea
+                value={mealDescription}
+                onChange={(e) => setMealDescription(e.target.value)}
+                placeholder="e.g., grilled salmon with roasted vegetables"
+                className="w-full p-3 border border-neutral-200 rounded-sm text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 mb-4 font-light"
+                rows={4}
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={logMeal}
+                  className="px-6 py-2 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setShowMealInput(false)}
+                  className="px-6 py-2 text-neutral-600 text-sm font-light tracking-wide hover:text-neutral-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Note Input */}
+        {/* Note Input Modal */}
         {showNoteInput && (
-          <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6 mb-6">
-            <h3 className="text-lg font-medium text-stone-800 mb-4">Add a Note</h3>
-            <textarea
-              value={noteContent}
-              onChange={(e) => setNoteContent(e.target.value)}
-              placeholder="How did your workout feel? Any observations about your energy or recovery?"
-              className="w-full p-3 border border-stone-300 rounded-md text-stone-700 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-800 mb-3"
-              rows={4}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={saveNote}
-                className="px-4 py-2 bg-stone-800 text-white text-sm font-medium rounded-md hover:bg-stone-700 transition-colors"
-              >
-                Save Note
-              </button>
-              <button
-                onClick={() => setShowNoteInput(false)}
-                className="px-4 py-2 bg-white border border-stone-300 text-stone-700 text-sm font-medium rounded-md hover:bg-stone-50 transition-colors"
-              >
-                Cancel
-              </button>
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-sm shadow-2xl max-w-md w-full p-8">
+              <h3 className="text-xl font-serif mb-4" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                Add a reflection
+              </h3>
+              <textarea
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                placeholder="How did today feel? Any observations about your energy or recovery?"
+                className="w-full p-3 border border-neutral-200 rounded-sm text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 mb-4 font-light"
+                rows={5}
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={saveNote}
+                  className="px-6 py-2 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setShowNoteInput(false)}
+                  className="px-6 py-2 text-neutral-600 text-sm font-light tracking-wide hover:text-neutral-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Goal Progress */}
+        {/* Goal Progress Modal */}
         {showGoalProgress && goalProgress && (
-          <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6 mb-6">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-medium text-stone-800">{goalProgress.goal?.title}</h3>
-              <button
-                onClick={() => setShowGoalProgress(false)}
-                className="text-stone-400 hover:text-stone-600"
-              >
-                ✕
-              </button>
-            </div>
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-sm shadow-2xl max-w-2xl w-full p-8 max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="text-2xl font-serif" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                  {goalProgress.goal?.title}
+                </h3>
+                <button
+                  onClick={() => setShowGoalProgress(false)}
+                  className="text-neutral-400 hover:text-neutral-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
 
-            {goalProgress.metrics && (
-              <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-stone-50 rounded-md">
-                <div>
-                  <div className="text-xs text-stone-500 mb-1">Total Workouts</div>
-                  <div className="text-2xl font-semibold text-stone-800">{goalProgress.metrics.totalWorkouts}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-stone-500 mb-1">Avg Heart Rate</div>
-                  <div className="text-2xl font-semibold text-stone-800">{goalProgress.metrics.averageHR} bpm</div>
-                </div>
-                <div>
-                  <div className="text-xs text-stone-500 mb-1">Trend</div>
-                  <div className={`text-lg font-medium ${
-                    goalProgress.metrics.trend === 'improving' ? 'text-green-600' :
-                    goalProgress.metrics.trend === 'worsening' ? 'text-red-600' :
-                    'text-stone-600'
-                  }`}>
-                    {goalProgress.metrics.trend}
-                  </div>
-                </div>
-                {goalProgress.metrics.improvement !== 0 && (
+              {goalProgress.metrics && (
+                <div className="grid grid-cols-2 gap-6 mb-8 pb-8 border-b border-neutral-200">
                   <div>
-                    <div className="text-xs text-stone-500 mb-1">Improvement</div>
-                    <div className="text-lg font-medium text-green-600">
-                      {goalProgress.metrics.improvement > 0 ? '+' : ''}{goalProgress.metrics.improvement}%
+                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Workouts</div>
+                    <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.totalWorkouts}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Avg HR</div>
+                    <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.averageHR} bpm</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Trend</div>
+                    <div className={`text-xl font-light ${
+                      goalProgress.metrics.trend === 'improving' ? 'text-emerald-600' :
+                      goalProgress.metrics.trend === 'worsening' ? 'text-red-600' :
+                      'text-neutral-600'
+                    }`}>
+                      {goalProgress.metrics.trend}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                  {goalProgress.metrics.improvement !== 0 && (
+                    <div>
+                      <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Change</div>
+                      <div className="text-xl font-light text-emerald-600">
+                        {goalProgress.metrics.improvement > 0 ? '+' : ''}{goalProgress.metrics.improvement}%
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-            <div className="prose prose-stone prose-sm max-w-none">
-              <div className="whitespace-pre-wrap text-stone-700 leading-relaxed">
-                {goalProgress.analysis}
+              <div className="prose prose-neutral max-w-none">
+                <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
+                  {goalProgress.analysis}
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="text-center text-xs text-stone-400 mt-12">
-          Your personal health data stays local on this device.
+        <div className="text-center text-xs text-neutral-400 mt-16 font-light tracking-wide">
+          your health data stays local on this device
         </div>
+
+        {generatedAt && (
+          <div className="text-center text-xs text-neutral-300 mt-2 font-light">
+            last updated {new Date(generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </div>
+        )}
       </div>
     </div>
   );
