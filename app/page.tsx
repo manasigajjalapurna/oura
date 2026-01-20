@@ -1,6 +1,105 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+
+// Goal Edit Form Component
+function GoalEditForm({ goal, onSave, onCancel }: any) {
+  const [formData, setFormData] = useState(goal);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm text-neutral-600 mb-2 font-light">Title</label>
+        <input
+          type="text"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+          placeholder="e.g., Lower Running HR"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm text-neutral-600 mb-2 font-light">Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+          rows={3}
+          placeholder="What do you want to achieve?"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-neutral-600 mb-2 font-light">Type</label>
+          <select
+            value={formData.goalType || formData.goal_type}
+            onChange={(e) => setFormData({ ...formData, goalType: e.target.value, goal_type: e.target.value })}
+            className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+          >
+            <option value="performance">Performance</option>
+            <option value="consistency">Consistency</option>
+            <option value="health">Health</option>
+            <option value="strength">Strength</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-neutral-600 mb-2 font-light">Status</label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+          >
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-neutral-600 mb-2 font-light">Target Value (optional)</label>
+          <input
+            type="text"
+            value={formData.targetValue || formData.target_value || ''}
+            onChange={(e) => setFormData({ ...formData, targetValue: e.target.value, target_value: e.target.value })}
+            className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+            placeholder="e.g., 145 bpm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-neutral-600 mb-2 font-light">Target Date (optional)</label>
+          <input
+            type="date"
+            value={formData.targetDate || formData.target_date || ''}
+            onChange={(e) => setFormData({ ...formData, targetDate: e.target.value, target_date: e.target.value })}
+            className="w-full px-4 py-2 border border-neutral-200 rounded-sm text-neutral-700 focus:outline-none focus:border-neutral-400 font-light"
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-4">
+        <button
+          onClick={() => onSave(formData)}
+          className="px-6 py-2 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors"
+        >
+          Save Goal
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-6 py-2 text-neutral-600 text-sm font-light tracking-wide hover:text-neutral-800 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [digest, setDigest] = useState<string>('');
@@ -12,6 +111,12 @@ export default function Home() {
   const [generatedAt, setGeneratedAt] = useState<string>('');
   const [showGoalProgress, setShowGoalProgress] = useState(false);
   const [goalProgress, setGoalProgress] = useState<any>(null);
+  const [showGoalsManagement, setShowGoalsManagement] = useState(false);
+  const [goals, setGoals] = useState<any[]>([]);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [chatInput, setChatInput] = useState('');
   const [showMealInput, setShowMealInput] = useState(false);
   const [mealDescription, setMealDescription] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
@@ -49,7 +154,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          digestType: getDigestType(),
+          digestType: 'daily',
           regenerate,
         }),
       });
@@ -109,6 +214,60 @@ export default function Home() {
       console.error(error);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const loadGoals = async () => {
+    try {
+      const response = await fetch('/api/goals');
+      const data = await response.json();
+      setGoals(data.goals || []);
+    } catch (error) {
+      console.error('Failed to load goals:', error);
+    }
+  };
+
+  const openGoalsManagement = async () => {
+    await loadGoals();
+    setShowGoalsManagement(true);
+  };
+
+  const saveGoal = async (goal: any) => {
+    try {
+      if (goal.id) {
+        // Update existing goal
+        await fetch(`/api/goals/${goal.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(goal),
+        });
+      } else {
+        // Create new goal
+        await fetch('/api/goals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(goal),
+        });
+      }
+      await loadGoals();
+      setEditingGoal(null);
+    } catch (error) {
+      console.error('Failed to save goal:', error);
+      alert('Failed to save goal');
+    }
+  };
+
+  const deleteGoal = async (goalId: number) => {
+    if (!confirm('Are you sure you want to delete this goal?')) return;
+
+    try {
+      await fetch(`/api/goals/${goalId}`, {
+        method: 'DELETE',
+      });
+      await loadGoals();
+    } catch (error) {
+      console.error('Failed to delete goal:', error);
+      alert('Failed to delete goal');
     }
   };
 
@@ -230,10 +389,10 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#fafaf9]">
       <div className="max-w-3xl mx-auto px-6 py-16">
-        {/* Greeting */}
+        {/* Date */}
         <div className="mb-4">
           <p className="text-sm text-neutral-500 font-light tracking-wide">
-            {getGreeting()} — {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
 
@@ -243,7 +402,7 @@ export default function Home() {
             className="text-4xl text-neutral-800 leading-tight mb-4"
             style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}
           >
-            {getDigestType().charAt(0).toUpperCase() + getDigestType().slice(1)} Digest
+            {getGreeting()}
           </h1>
           {summary && summary !== 'Your Health Digest' && (
             <p className="text-lg text-neutral-600 leading-relaxed font-light max-w-2xl">
@@ -254,8 +413,8 @@ export default function Home() {
 
         {/* Main Digest */}
         <div className="prose prose-neutral max-w-none mb-16">
-          <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
-            {digest}
+          <div className="text-neutral-700 leading-relaxed font-light markdown-content">
+            <ReactMarkdown>{digest}</ReactMarkdown>
           </div>
         </div>
 
@@ -282,12 +441,21 @@ export default function Home() {
           </button>
 
           <button
-            onClick={loadGoalProgress}
+            onClick={openGoalsManagement}
             className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60"
-            title="View goal progress"
+            title="Manage goals"
           >
             <span className="text-2xl">📊</span>
             <span className="text-xs text-neutral-500 font-light tracking-wide">goals</span>
+          </button>
+
+          <button
+            onClick={() => setShowChat(true)}
+            className="group flex flex-col items-center gap-2 transition-opacity hover:opacity-60"
+            title="Chat with AI"
+          >
+            <span className="text-2xl">💬</span>
+            <span className="text-xs text-neutral-500 font-light tracking-wide">chat</span>
           </button>
 
           <button
@@ -441,8 +609,8 @@ export default function Home() {
                   )}
 
                   <div className="prose prose-neutral max-w-none">
-                    <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
-                      {goalProgress.analysis}
+                    <div className="text-neutral-700 leading-relaxed font-light">
+                      <ReactMarkdown>{goalProgress.analysis}</ReactMarkdown>
                     </div>
                   </div>
                 </>
@@ -451,6 +619,185 @@ export default function Home() {
                   <p className="text-neutral-500 font-light">Loading...</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Goals Management Modal */}
+        {showGoalsManagement && (
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-sm shadow-2xl max-w-3xl w-full p-8 max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="text-2xl font-serif" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                  Your Goals
+                </h3>
+                <button
+                  onClick={() => setShowGoalsManagement(false)}
+                  className="text-neutral-400 hover:text-neutral-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {editingGoal ? (
+                <GoalEditForm
+                  goal={editingGoal}
+                  onSave={saveGoal}
+                  onCancel={() => setEditingGoal(null)}
+                />
+              ) : (
+                <>
+                  <div className="space-y-4 mb-6">
+                    {goals.length === 0 ? (
+                      <p className="text-neutral-500 text-center py-8 font-light">
+                        No goals yet. Create your first goal to start tracking your progress.
+                      </p>
+                    ) : (
+                      goals.map((goal: any) => (
+                        <div key={goal.id} className="border border-neutral-200 rounded-sm p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-lg font-serif" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                              {goal.title}
+                            </h4>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  loadGoalProgress(goal.id);
+                                  setShowGoalsManagement(false);
+                                }}
+                                className="text-xs text-neutral-500 hover:text-neutral-700 px-2 py-1"
+                              >
+                                View Progress
+                              </button>
+                              <button
+                                onClick={() => setEditingGoal(goal)}
+                                className="text-xs text-neutral-500 hover:text-neutral-700 px-2 py-1"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteGoal(goal.id)}
+                                className="text-xs text-red-500 hover:text-red-700 px-2 py-1"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-neutral-600 font-light mb-2">{goal.description}</p>
+                          <div className="flex gap-4 text-xs text-neutral-500">
+                            <span>Type: {goal.goal_type}</span>
+                            {goal.target_value && <span>Target: {goal.target_value}</span>}
+                            {goal.target_date && <span>Due: {new Date(goal.target_date).toLocaleDateString()}</span>}
+                            <span className={`px-2 py-0.5 rounded ${
+                              goal.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                              goal.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                              'bg-neutral-100 text-neutral-600'
+                            }`}>
+                              {goal.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setEditingGoal({ title: '', description: '', goalType: 'performance', status: 'active' })}
+                    className="w-full px-6 py-3 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors"
+                  >
+                    + Create New Goal
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Chat Interface */}
+        {showChat && (
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-sm shadow-2xl max-w-3xl w-full h-[80vh] flex flex-col">
+              <div className="flex justify-between items-center p-6 border-b border-neutral-200">
+                <h3 className="text-xl font-serif" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
+                  Chat with your Health AI
+                </h3>
+                <button
+                  onClick={() => setShowChat(false)}
+                  className="text-neutral-400 hover:text-neutral-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {chatMessages.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-neutral-500 font-light mb-4">
+                      Ask me anything about your health data, training, or get personalized advice.
+                    </p>
+                    <div className="space-y-2 text-sm text-neutral-400">
+                      <p>Example: &quot;Why has my HRV been variable lately?&quot;</p>
+                      <p>Example: &quot;What should I focus on for my half marathon training?&quot;</p>
+                      <p>Example: &quot;How&apos;s my sleep affecting my workouts?&quot;</p>
+                    </div>
+                  </div>
+                ) : (
+                  chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] px-4 py-3 rounded-sm ${
+                        msg.role === 'user'
+                          ? 'bg-neutral-800 text-white'
+                          : 'bg-neutral-100 text-neutral-700'
+                      }`}>
+                        <ReactMarkdown className="text-sm font-light">{msg.content}</ReactMarkdown>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="p-6 border-t border-neutral-200">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!chatInput.trim()) return;
+
+                  const userMessage = chatInput;
+                  setChatInput('');
+                  setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+                  try {
+                    const response = await fetch('/api/chat', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ message: userMessage }),
+                    });
+                    const data = await response.json();
+                    setChatMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+                  } catch (error) {
+                    console.error('Chat error:', error);
+                    setChatMessages(prev => [...prev, {
+                      role: 'assistant',
+                      content: 'Sorry, I had trouble processing that. Please try again.'
+                    }]);
+                  }
+                }}>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Ask about your health data..."
+                      className="flex-1 px-4 py-3 border border-neutral-200 rounded-sm text-neutral-700 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 font-light"
+                    />
+                    <button
+                      type="submit"
+                      className="px-6 py-3 bg-neutral-800 text-white text-sm font-light tracking-wide rounded-sm hover:bg-neutral-700 transition-colors"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
