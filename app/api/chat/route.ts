@@ -97,23 +97,9 @@ Answer the user's question thoughtfully and specifically, using their actual hea
 Keep your response concise (2-4 paragraphs unless more detail is needed).`;
 
     const claudeService = createClaudeService();
-    const response = await claudeService.client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: contextPrompt,
-        },
-      ],
-    });
+    const responseText = await claudeService.generateChatResponse(contextPrompt);
 
-    const content = response.content[0];
-    if (content.type === 'text') {
-      return NextResponse.json({ success: true, response: content.text });
-    }
-
-    throw new Error('Unexpected response format from Claude');
+    return NextResponse.json({ success: true, response: responseText });
   } catch (error: any) {
     console.error('Chat error:', error);
     return NextResponse.json(

@@ -226,6 +226,26 @@ Return ONLY the question, nothing else.`;
 
     throw new Error('Unexpected response format from Claude');
   }
+
+  async generateChatResponse(prompt: string): Promise<string> {
+    const message = await this.client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1500,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    const content = message.content[0];
+    if (content.type === 'text') {
+      return content.text;
+    }
+
+    throw new Error('Unexpected response format from Claude');
+  }
 }
 
 export function createClaudeService(): ClaudeService {
