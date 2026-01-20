@@ -56,13 +56,29 @@ export default function Home() {
 
       const data = await response.json();
 
-      // Extract first line as summary
+      // Extract first paragraph as summary (before first blank line)
       const lines = data.digest.split('\n');
-      const summaryLine = lines.find((l: string) => l.trim().startsWith('#')) || '';
-      const bodyStart = lines.findIndex((l: string) => l === summaryLine);
+      const firstBlankLine = lines.findIndex((l: string) => l.trim() === '');
 
-      setSummary(summaryLine.replace(/^#+\s*/, ''));
-      setDigest(lines.slice(bodyStart + 1).join('\n'));
+      if (firstBlankLine > 0) {
+        // Summary is everything before the first blank line
+        const summaryLines = lines.slice(0, firstBlankLine);
+        setSummary(summaryLines.join(' ').trim());
+        // Digest is everything after the blank line
+        setDigest(lines.slice(firstBlankLine + 1).join('\n').trim());
+      } else {
+        // Fallback: no clear summary structure, use first paragraph
+        const firstParagraphEnd = lines.findIndex((l, i) => i > 0 && l.trim() === '');
+        if (firstParagraphEnd > 0) {
+          setSummary(lines.slice(0, firstParagraphEnd).join(' ').trim());
+          setDigest(lines.slice(firstParagraphEnd).join('\n').trim());
+        } else {
+          // No paragraph breaks, just show the whole thing as digest
+          setSummary('Your Health Digest');
+          setDigest(data.digest);
+        }
+      }
+
       setGeneratedAt(data.generatedAt);
       setHasData(true);
     } catch (error) {
@@ -96,14 +112,38 @@ export default function Home() {
     }
   };
 
-  const loadGoalProgress = async () => {
+  const loadGoalProgress = async (goalId?: number) => {
     try {
-      const response = await fetch('/api/goals/1/progress');
+      // If no goalId provided, fetch all goals first
+      if (!goalId) {
+        const goalsResponse = await fetch('/api/goals');
+        const goalsData = await goalsResponse.json();
+
+        if (goalsData.goals && goalsData.goals.length > 0) {
+          // Load progress for the first active goal
+          const firstGoal = goalsData.goals.find((g: any) => g.status === 'active') || goalsData.goals[0];
+          goalId = firstGoal.id;
+        } else {
+          // No goals exist yet
+          setGoalProgress({ noGoals: true });
+          setShowGoalProgress(true);
+          return;
+        }
+      }
+
+      const response = await fetch(`/api/goals/${goalId}/progress`);
       const data = await response.json();
-      setGoalProgress(data);
+
+      if (data.success === false) {
+        setGoalProgress({ error: data.error });
+      } else {
+        setGoalProgress(data);
+      }
       setShowGoalProgress(true);
     } catch (error) {
       console.error('Failed to load goal progress:', error);
+      setGoalProgress({ error: 'Failed to load goals' });
+      setShowGoalProgress(true);
     }
   };
 
@@ -197,14 +237,19 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Summary Header */}
+        {/* Header with Title and Summary */}
         <div className="mb-12">
           <h1
-            className="text-4xl text-neutral-800 leading-tight mb-2"
+            className="text-4xl text-neutral-800 leading-tight mb-4"
             style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}
           >
-            {summary || 'Your Daily Health Digest'}
+            {getDigestType().charAt(0).toUpperCase() + getDigestType().slice(1)} Digest
           </h1>
+          {summary && summary !== 'Your Health Digest' && (
+            <p className="text-lg text-neutral-600 leading-relaxed font-light max-w-2xl">
+              {summary}
+            </p>
+          )}
         </div>
 
         {/* Main Digest */}
@@ -331,12 +376,12 @@ export default function Home() {
         )}
 
         {/* Goal Progress Modal */}
-        {showGoalProgress && goalProgress && (
+        {showGoalProgress && (
           <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 px-6">
             <div className="bg-white rounded-sm shadow-2xl max-w-2xl w-full p-8 max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-start mb-6">
                 <h3 className="text-2xl font-serif" style={{ fontFamily: 'Instrument Serif, Georgia, serif' }}>
-                  {goalProgress.goal?.title}
+                  {goalProgress?.noGoals ? 'Your Goals' : goalProgress?.error ? 'Error' : goalProgress?.goal?.title || 'Goal Progress'}
                 </h3>
                 <button
                   onClick={() => setShowGoalProgress(false)}
@@ -346,42 +391,66 @@ export default function Home() {
                 </button>
               </div>
 
-              {goalProgress.metrics && (
-                <div className="grid grid-cols-2 gap-6 mb-8 pb-8 border-b border-neutral-200">
-                  <div>
-                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Workouts</div>
-                    <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.totalWorkouts}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Avg HR</div>
-                    <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.averageHR} bpm</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Trend</div>
-                    <div className={`text-xl font-light ${
-                      goalProgress.metrics.trend === 'improving' ? 'text-emerald-600' :
-                      goalProgress.metrics.trend === 'worsening' ? 'text-red-600' :
-                      'text-neutral-600'
-                    }`}>
-                      {goalProgress.metrics.trend}
-                    </div>
-                  </div>
-                  {goalProgress.metrics.improvement !== 0 && (
-                    <div>
-                      <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Change</div>
-                      <div className="text-xl font-light text-emerald-600">
-                        {goalProgress.metrics.improvement > 0 ? '+' : ''}{goalProgress.metrics.improvement}%
+              {goalProgress?.noGoals ? (
+                <div className="text-center py-8">
+                  <p className="text-neutral-600 mb-6 font-light">
+                    You haven&apos;t set any goals yet. Goals help you track specific health and fitness objectives.
+                  </p>
+                  <p className="text-neutral-500 text-sm font-light">
+                    The default &quot;Lower Running HR&quot; goal should have been created during setup. Try running the setup script again or create a new goal manually.
+                  </p>
+                </div>
+              ) : goalProgress?.error ? (
+                <div className="text-center py-8">
+                  <p className="text-red-600 mb-2 font-light">{goalProgress.error}</p>
+                  <p className="text-neutral-500 text-sm font-light">
+                    There was an issue loading your goals. Please try again or check your data.
+                  </p>
+                </div>
+              ) : goalProgress ? (
+                <>
+                  {goalProgress.metrics && (
+                    <div className="grid grid-cols-2 gap-6 mb-8 pb-8 border-b border-neutral-200">
+                      <div>
+                        <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Workouts</div>
+                        <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.totalWorkouts}</div>
                       </div>
+                      <div>
+                        <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Avg HR</div>
+                        <div className="text-3xl font-light text-neutral-800">{goalProgress.metrics.averageHR} bpm</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Trend</div>
+                        <div className={`text-xl font-light ${
+                          goalProgress.metrics.trend === 'improving' ? 'text-emerald-600' :
+                          goalProgress.metrics.trend === 'worsening' ? 'text-red-600' :
+                          'text-neutral-600'
+                        }`}>
+                          {goalProgress.metrics.trend}
+                        </div>
+                      </div>
+                      {goalProgress.metrics.improvement !== 0 && (
+                        <div>
+                          <div className="text-xs text-neutral-500 mb-1 tracking-wide uppercase">Change</div>
+                          <div className="text-xl font-light text-emerald-600">
+                            {goalProgress.metrics.improvement > 0 ? '+' : ''}{goalProgress.metrics.improvement}%
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <div className="prose prose-neutral max-w-none">
+                    <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
+                      {goalProgress.analysis}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-neutral-500 font-light">Loading...</p>
                 </div>
               )}
-
-              <div className="prose prose-neutral max-w-none">
-                <div className="text-neutral-700 leading-relaxed font-light whitespace-pre-wrap">
-                  {goalProgress.analysis}
-                </div>
-              </div>
             </div>
           </div>
         )}

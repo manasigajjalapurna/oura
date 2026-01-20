@@ -121,8 +121,11 @@ ${userNotes.length > 0 ? JSON.stringify(userNotes, null, 2) : 'No recent notes'}
 
 ## Your Task
 
-Generate a thoughtful, personalized health digest. Your response should:
+Generate a thoughtful, personalized health digest. Your response MUST follow this exact format:
 
+**Line 1:** A concise 1-3 sentence summary that captures the key takeaway(s) from the data. This should be the most important insight or recommendation. End with TWO newlines.
+
+**Rest of digest:** 3-5 paragraphs that:
 1. **Synthesize patterns** across sleep, recovery, activity, and workouts - don't just list stats
 2. **Connect the dots** between different metrics (e.g., how poor sleep might be affecting HR during runs)
 3. **Be specific and actionable** - give concrete recommendations tailored to the user's goals
@@ -135,7 +138,15 @@ For the marathon training goal (lower running HR):
 - Connect recovery metrics (HRV, sleep quality, readiness) to workout performance
 - Suggest specific training adjustments based on recent data
 
-Keep the digest concise but insightful (3-5 paragraphs). Start with a friendly greeting and end with an actionable recommendation or reflection prompt.
+Start the main content with a friendly greeting and end with an actionable recommendation or reflection prompt.
+
+Example format:
+Your recovery is trending well this week, with HRV up 12% and consistent sleep - but your running HR remains elevated, suggesting you may still be pushing too hard on easy runs.
+
+[blank line]
+
+Good morning! Looking at your week...
+[rest of digest content]
 
 Date: ${today}`;
   }

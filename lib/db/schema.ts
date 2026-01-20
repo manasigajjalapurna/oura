@@ -113,13 +113,49 @@ export function initializeDatabase() {
     )
   `);
 
-  // Heart Rate Data (if we want to store detailed HR data)
+  // Heart Rate Data (5-minute interval data from Oura)
   db.exec(`
     CREATE TABLE IF NOT EXISTS heart_rate (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp DATETIME NOT NULL,
       bpm INTEGER NOT NULL,
       source TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(timestamp, source)
+    )
+  `);
+
+  // SpO2 Data
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oura_spo2 (
+      id TEXT PRIMARY KEY,
+      day DATE NOT NULL,
+      spo2_percentage REAL,
+      breathing_disturbance_index REAL,
+      raw_data TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(day)
+    )
+  `);
+
+  // Sleep Sessions (individual sleep periods, can be multiple per day)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oura_sleep_sessions (
+      id TEXT PRIMARY KEY,
+      day DATE NOT NULL,
+      bedtime_start DATETIME,
+      bedtime_end DATETIME,
+      type TEXT,
+      total_sleep_duration INTEGER,
+      awake_time INTEGER,
+      light_sleep_duration INTEGER,
+      deep_sleep_duration INTEGER,
+      rem_sleep_duration INTEGER,
+      average_hrv REAL,
+      average_heart_rate REAL,
+      lowest_heart_rate REAL,
+      efficiency INTEGER,
+      raw_data TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);

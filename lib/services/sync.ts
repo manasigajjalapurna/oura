@@ -182,6 +182,89 @@ export class SyncService {
     console.log(`✓ Synced ${workoutData.length} workout records`);
   }
 
+  // Sync SpO2 data
+  syncSpO2(spo2Data: any[]) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO oura_spo2 (
+        id, day, spo2_percentage, breathing_disturbance_index, raw_data
+      ) VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = db.transaction((records: any[]) => {
+      for (const record of records) {
+        stmt.run(
+          record.id,
+          record.day,
+          record.spo2_percentage?.average,
+          record.breathing_disturbance_index,
+          JSON.stringify(record)
+        );
+      }
+    });
+
+    insertMany(spo2Data);
+    console.log(`✓ Synced ${spo2Data.length} SpO2 records`);
+  }
+
+  // Sync sleep sessions (individual sleep periods)
+  syncSleepSessions(sleepSessionData: any[]) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO oura_sleep_sessions (
+        id, day, bedtime_start, bedtime_end, type, total_sleep_duration,
+        awake_time, light_sleep_duration, deep_sleep_duration,
+        rem_sleep_duration, average_hrv, average_heart_rate,
+        lowest_heart_rate, efficiency, raw_data
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = db.transaction((records: any[]) => {
+      for (const record of records) {
+        stmt.run(
+          record.id,
+          record.day,
+          record.bedtime_start,
+          record.bedtime_end,
+          record.type,
+          record.total_sleep_duration,
+          record.awake_time,
+          record.light_sleep_duration,
+          record.deep_sleep_duration,
+          record.rem_sleep_duration,
+          record.average_hrv,
+          record.average_heart_rate,
+          record.lowest_heart_rate,
+          record.efficiency,
+          JSON.stringify(record)
+        );
+      }
+    });
+
+    insertMany(sleepSessionData);
+    console.log(`✓ Synced ${sleepSessionData.length} sleep session records`);
+  }
+
+  // Sync heart rate data (5-minute interval data)
+  syncHeartRate(heartRateData: any[]) {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO heart_rate (
+        timestamp, bpm, source
+      ) VALUES (?, ?, ?)
+    `);
+
+    const insertMany = db.transaction((records: any[]) => {
+      for (const record of records) {
+        stmt.run(
+          record.timestamp,
+          record.bpm,
+          record.source || 'oura'
+        );
+      }
+    });
+
+    insertMany(heartRateData);
+    console.log(`✓ Synced ${heartRateData.length} heart rate records`);
+  }
+
   // Update sync status
   updateSyncStatus(dataType: string, date: string) {
     const stmt = db.prepare(`
@@ -208,9 +291,14 @@ export class SyncService {
       const data = await this.ouraService.fetchAllData(startDate, endDate);
 
       // Sync all data types
-      if (data.sleep.length > 0) {
-        this.syncSleep(data.sleep);
-        this.updateSyncStatus('sleep', endDate);
+      if (data.dailySleep.length > 0) {
+        this.syncSleep(data.dailySleep);
+        this.updateSyncStatus('daily_sleep', endDate);
+      }
+
+      if (data.sleepSessions.length > 0) {
+        this.syncSleepSessions(data.sleepSessions);
+        this.updateSyncStatus('sleep_sessions', endDate);
       }
 
       if (data.activity.length > 0) {
@@ -233,16 +321,29 @@ export class SyncService {
         this.updateSyncStatus('workouts', endDate);
       }
 
+      if (data.spo2.length > 0) {
+        this.syncSpO2(data.spo2);
+        this.updateSyncStatus('spo2', endDate);
+      }
+
+      if (data.heartRate.length > 0) {
+        this.syncHeartRate(data.heartRate);
+        this.updateSyncStatus('heart_rate', endDate);
+      }
+
       console.log(`\n✓ Full sync completed successfully!\n`);
 
       return {
         success: true,
         syncedRecords: {
-          sleep: data.sleep.length,
+          dailySleep: data.dailySleep.length,
+          sleepSessions: data.sleepSessions.length,
           activity: data.activity.length,
           readiness: data.readiness.length,
           stress: data.stress.length,
           workouts: data.workouts.length,
+          spo2: data.spo2.length,
+          heartRate: data.heartRate.length,
         },
       };
     } catch (error) {

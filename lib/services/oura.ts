@@ -117,13 +117,14 @@ export class OuraService {
     console.log(`Fetching Oura data from ${startDate} to ${endDate}...`);
 
     const [
-      sleep,
+      sleepSessions,
       dailySleep,
       activity,
       readiness,
       stress,
       workouts,
       spo2,
+      heartRate,
     ] = await Promise.all([
       this.getSleep(startDate, endDate),
       this.getDailySleep(startDate, endDate),
@@ -132,16 +133,18 @@ export class OuraService {
       this.getDailyStress(startDate, endDate),
       this.getWorkouts(startDate, endDate),
       this.getDailySpO2(startDate, endDate),
+      this.getHeartRate(startDate, endDate),
     ]);
 
     return {
-      sleep: sleep.data || [],
+      sleepSessions: sleepSessions.data || [],
       dailySleep: dailySleep.data || [],
       activity: activity.data || [],
       readiness: readiness.data || [],
       stress: stress.data || [],
       workouts: workouts.data || [],
       spo2: spo2.data || [],
+      heartRate: heartRate.data || [],
     };
   }
 }
