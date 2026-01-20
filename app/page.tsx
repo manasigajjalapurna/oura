@@ -196,7 +196,7 @@ export default function Home() {
         setDigest(lines.slice(firstBlankLine + 1).join('\n').trim());
       } else {
         // Fallback: no clear summary structure, use first paragraph
-        const firstParagraphEnd = lines.findIndex((l, i) => i > 0 && l.trim() === '');
+        const firstParagraphEnd = lines.findIndex((l: string, i: number) => i > 0 && l.trim() === '');
         if (firstParagraphEnd > 0) {
           setSummary(lines.slice(0, firstParagraphEnd).join(' ').trim());
           setDigest(lines.slice(firstParagraphEnd).join('\n').trim());
@@ -374,10 +374,11 @@ export default function Home() {
   };
 
   const getGreeting = () => {
+    const name = 'Manasi';
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning,';
-    if (hour < 18) return 'Good Afternoon,';
-    return 'Good Evening,';
+    if (hour < 12) return `Good Morning, ${name}`;
+    if (hour < 18) return `Good Afternoon, ${name}`;
+    return `Good Evening, ${name}`;
   };
 
   const digestForRender = digest.includes('\n\n') ? digest : digest.replace(/\n/g, '\n\n');
@@ -781,7 +782,9 @@ export default function Home() {
                           ? 'bg-neutral-800 text-white'
                           : 'bg-neutral-100 text-neutral-700'
                       }`}>
-                        <ReactMarkdown className="text-sm font-light">{msg.content}</ReactMarkdown>
+                        <div className="text-sm font-light">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))
