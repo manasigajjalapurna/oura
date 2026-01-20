@@ -80,18 +80,22 @@ export class ClaudeService {
   ): string {
     const today = new Date().toISOString().split('T')[0];
 
-    let timeContext = '';
-    if (digestType === 'morning') {
-      timeContext = 'This is a morning digest. Focus on how the user slept, their readiness for the day ahead, and what they should prioritize based on their recovery and goals.';
-    } else if (digestType === 'afternoon') {
-      timeContext = 'This is an afternoon digest. Focus on activity progress so far today, energy levels, and how they\'re tracking toward their goals.';
-    } else {
-      timeContext = 'This is an evening digest. Reflect on the full day - activity, workouts, stress, meals - and provide actionable insights for tomorrow.';
-    }
+    return `You are a personal health AI assistant analyzing Oura Ring data for a dedicated athlete and college student.
 
-    return `You are a personal health AI assistant analyzing Oura Ring data for a marathon runner training to lower their running heart rate.
-
-${timeContext}
+## About the User
+- **Physical Stats**: 5'5", ~130 lbs, female
+- **Diet**: Vegetarian, actively working to increase protein intake
+- **Activity Level**: Runs a few times per week, walks frequently as a college student, focusing on building strength
+- **Training Goals**:
+  - Half marathon on March 30, 2026
+  - Full marathon end of 2026
+  - Improve running pace and endurance
+  - Lower running heart rate for better aerobic efficiency
+  - Build muscle and strength (top priority right now)
+  - Improve sleep consistency and quality
+  - Better understand HRV patterns
+- **Context**: College student lifestyle leads to variable sleep patterns and higher stress levels
+- **Current Focus**: Getting better at running (pace, endurance, HR efficiency), improving sleep consistency, building strength and muscle mass
 
 ## User's Health Data
 
@@ -126,26 +130,30 @@ Generate a thoughtful, personalized health digest. Your response MUST follow thi
 **Line 1:** A concise 1-3 sentence summary that captures the key takeaway(s) from the data. This should be the most important insight or recommendation. End with TWO newlines.
 
 **Rest of digest:** 3-5 paragraphs that:
-1. **Synthesize patterns** across sleep, recovery, activity, and workouts - don't just list stats
-2. **Connect the dots** between different metrics (e.g., how poor sleep might be affecting HR during runs)
-3. **Be specific and actionable** - give concrete recommendations tailored to the user's goals
-4. **Be conversational and supportive** - write like a knowledgeable coach, not a robot
-5. **Focus on what matters** - prioritize insights that help achieve goals
+1. **Analyze workout performance deeply** - examine pace, HR trends, duration, intensity, recovery patterns
+2. **Synthesize patterns** across sleep, recovery, activity, strength training, and running performance
+3. **Connect the dots** between different metrics (e.g., how sleep affects workout performance, HRV patterns and training readiness)
+4. **Be specific and actionable** - give concrete recommendations tailored to current training goals
+5. **Address strength training** - note correlations between activity patterns and muscle building/recovery
+6. **Be conversational and supportive** - write like a knowledgeable coach, not a robot
+7. **Focus on what matters** - prioritize insights for marathon training, strength building, and sleep optimization
 
-For the marathon training goal (lower running HR):
-- Track HR trends across workouts over time
-- Identify what training conditions correlate with lower/higher HR
-- Connect recovery metrics (HRV, sleep quality, readiness) to workout performance
-- Suggest specific training adjustments based on recent data
+Key areas to analyze:
+- **Running performance**: HR trends, pace, endurance, training volume, aerobic efficiency
+- **Strength indicators**: Activity patterns, recovery scores, readiness for strength work
+- **Sleep quality**: Consistency, duration, HRV patterns, recovery impact
+- **Recovery metrics**: HRV trends, readiness scores, stress levels, their relationship to training
+- **Protein/nutrition**: When meals are logged, connect to workout performance and recovery
+- **Training balance**: Running volume, strength work, rest days, overtraining risk
 
-Start the main content with a friendly greeting and end with an actionable recommendation or reflection prompt.
+Start the main content with a friendly greeting. End with an actionable recommendation or thoughtful question.
 
 Example format:
-Your recovery is trending well this week, with HRV up 12% and consistent sleep - but your running HR remains elevated, suggesting you may still be pushing too hard on easy runs.
+Your running HR is trending down nicely over the past two weeks, averaging 152 bpm compared to 158 last month. Your HRV has been variable though, possibly due to inconsistent sleep timing - prioritizing a regular sleep schedule could help lock in these running gains.
 
 [blank line]
 
-Good morning! Looking at your week...
+Hey! Looking at your week, I'm noticing some really interesting patterns...
 [rest of digest content]
 
 Date: ${today}`;
