@@ -4,11 +4,12 @@ import db from '@/lib/db/schema';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     initializeDatabase();
 
+    const { id } = await params;
     const body = await request.json();
     const { title, description, goalType, targetValue, targetDate, status } = body;
 
@@ -48,7 +49,7 @@ export async function PATCH(
       );
     }
 
-    values.push(params.id);
+    values.push(id);
 
     db.prepare(`
       UPDATE goals
@@ -56,7 +57,7 @@ export async function PATCH(
       WHERE id = ?
     `).run(...values);
 
-    const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(params.id);
+    const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
 
     return NextResponse.json({ success: true, goal });
   } catch (error: any) {
@@ -69,12 +70,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     initializeDatabase();
 
-    db.prepare('DELETE FROM goals WHERE id = ?').run(params.id);
+    const { id } = await params;
+    db.prepare('DELETE FROM goals WHERE id = ?').run(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
