@@ -5,12 +5,12 @@ import { createClaudeService } from '@/lib/services/claude';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     initializeDatabase();
 
-    const goalId = params.id;
+    const { id: goalId } = await params;
     const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(goalId) as any;
 
     if (!goal) {
