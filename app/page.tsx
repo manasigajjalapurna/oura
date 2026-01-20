@@ -109,6 +109,7 @@ export default function Home() {
   const [syncing, setSyncing] = useState(false);
   const [hasData, setHasData] = useState(false);
   const [generatedAt, setGeneratedAt] = useState<string>('');
+  const [isPreview, setIsPreview] = useState(false);
   const [showGoalProgress, setShowGoalProgress] = useState(false);
   const [goalProgress, setGoalProgress] = useState<any>(null);
   const [showGoalsManagement, setShowGoalsManagement] = useState(false);
@@ -123,6 +124,27 @@ export default function Home() {
   const [noteContent, setNoteContent] = useState('');
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const preview = params.get('preview') === '1';
+
+    if (preview) {
+      setIsPreview(true);
+      setHasData(true);
+      setLoading(false);
+      setSummary('Preview mode (no API calls)');
+      setDigest(
+        [
+          "Your 7.9-hour sleep on Sunday night was solid, but that 5-hour session on Friday is likely behind your lower HRV readings.",
+          "",
+          "Hey! Looking at your week, I'm encouraged by the direction your training is taking—especially your renewed focus on strength work.",
+          "",
+          'Your sleep pattern is the biggest lever you have right now. Aim for a steadier bedtime this week.',
+        ].join('\n')
+      );
+      setGeneratedAt(new Date().toISOString());
+      return;
+    }
+
     checkDataAndLoadDigest();
   }, []);
 
@@ -146,6 +168,7 @@ export default function Home() {
   };
 
   const loadDigest = async (regenerate = false) => {
+    if (isPreview) return;
     try {
       setRefreshing(regenerate);
       if (!regenerate) setLoading(true);
@@ -195,6 +218,7 @@ export default function Home() {
   };
 
   const syncData = async () => {
+    if (isPreview) return;
     try {
       setSyncing(true);
       const response = await fetch('/api/sync', {
@@ -351,10 +375,12 @@ export default function Home() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 18) return 'Good Afternoon,';
+    return 'Good Evening,';
   };
+
+  const digestForRender = digest.includes('\n\n') ? digest : digest.replace(/\n/g, '\n\n');
 
   if (loading) {
     return (
@@ -414,7 +440,13 @@ export default function Home() {
         {/* Main Digest */}
         <div className="prose prose-neutral max-w-none mb-16">
           <div className="text-neutral-700 leading-relaxed font-light markdown-content">
-            <ReactMarkdown>{digest}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p className="m-0 mb-6 last:mb-0">{children}</p>,
+              }}
+            >
+              {digestForRender}
+            </ReactMarkdown>
           </div>
         </div>
 
